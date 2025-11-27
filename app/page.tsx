@@ -1,3 +1,5 @@
+"use client";
+
 import { useState } from 'react';
 import { CreditCard, Zap, RefreshCw, Activity, Lock } from 'lucide-react';
 import { WagmiConfig } from 'wagmi';
