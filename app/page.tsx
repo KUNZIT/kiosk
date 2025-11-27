@@ -13,7 +13,8 @@ const CONFIG = {
   
   // REQUIRED: RPC URL (Ensure your NEXT_PUBLIC_RPC_URL points to a Sepolia node)
   RPC_URL: process.env.NEXT_PUBLIC_RPC_URL || "", 
-  
+
+  REQUIRED_AMOUNT: 0.001,  
   // **MODIFIED:** Amount to verify (0.001 ETH)
   REQUIRED_AMOUNT_WEI: "1000000000000000",
   
