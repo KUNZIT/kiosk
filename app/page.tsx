@@ -35,8 +35,8 @@ export default function App() {
   const audioRef = useRef(null);
 
   // Inactivity Timer Logic
-  const timerRef = useRef(null);
-
+  const timerRef = useRef<NodeJS.Timeout | null>(null);
+  
   const resetInactivityTimer = useCallback(() => {
     if (timerRef.current) clearTimeout(timerRef.current);
     timerRef.current = setTimeout(() => {
