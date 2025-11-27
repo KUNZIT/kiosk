@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { CreditCard, Zap, RefreshCw, Cpu, Activity, Lock } from 'lucide-react';
-import { Contract } from 'ethers';
+import { Contract, BigNumberish, Log, AddressLike } from 'ethers';
 
 
 const CONFIG = {
@@ -136,7 +136,12 @@ export default function App() {
         const filter = contract.filters.Transfer(null, CONFIG.MERCHANT_ADDRESS);
 
         // Listener Callback
-        const handleTransfer = async (from, to, value, event) => {
+        const handleTransfer = async (
+          from: AddressLike,
+          to: AddressLike,
+          value: BigNumberish,
+          event: Log
+        ) => {
           // value is BigNumber
           const formattedValue = ethers.formatUnits(value, 6); // USDT has 6 decimals
           console.log(`Transfer detected! ${formattedValue} USDT from ${from}`);
