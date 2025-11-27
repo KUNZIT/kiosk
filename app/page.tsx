@@ -4,7 +4,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { CreditCard, Zap, RefreshCw, Activity, Lock } from 'lucide-react';
 // We only need the base types from ethers, not Contract, BigNumberish, Log, AddressLike 
 // since we are using the Provider's 'pending' listener instead of a Contract listener.
-import { BigNumberish } from 'ethers';
+import { BigNumberish, JsonRpcProvider, formatEther } from 'ethers';
 
 
 const CONFIG = {
@@ -15,7 +15,7 @@ const CONFIG = {
   RPC_URL: process.env.NEXT_PUBLIC_RPC_URL || "", 
   
   // **MODIFIED:** Amount to verify (0.001 ETH)
-  REQUIRED_AMOUNT: 0.001,
+  REQUIRED_AMOUNT_WEI: "1000000000000000",
   
   // Inactivity timeout in milliseconds (e.g., 60 seconds)
   INACTIVITY_LIMIT: 60000,
