@@ -149,7 +149,7 @@ export default function App() {
           if (parseFloat(formattedValue) >= CONFIG.REQUIRED_AMOUNT) {
             console.log("Payment Confirmed.");
             contract.off(filter, handleTransfer); // Stop listening
-            handlePaymentSuccess(event.log.transactionHash);
+            handlePaymentSuccess(event.transactionHash);
           }
         };
 
