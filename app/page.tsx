@@ -33,8 +33,8 @@ export default function App() {
   const [ethersLoaded, setEthersLoaded] = useState(false);
   
   // Audio Refs
-  const audioRef = useRef(null);
-
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+  
   // Inactivity Timer Logic
   const timerRef = useRef<NodeJS.Timeout | null>(null);
   
@@ -176,14 +176,19 @@ export default function App() {
     
     // 1. Play Audio
     if (audioRef.current) {
-        // Fallback to online sound if local file is missing
-        const playPromise = (audioRef.current as HTMLAudioElement).play();
-        if (playPromise !== undefined) {
-            playPromise.catch(error => {
-                console.log("Local audio failed, trying backup url.");
-                // Fallback URL (Sound effect)
-                (audioRef.current as HTMLAudioElement).src = "https://assets.mixkit.co/active_storage/sfx/2000/2000-preview.mp3";
-                (audioRef.current as HTMLAudioElement).play();
+
+const playAlert = useCallback(() => {
+  // 1. Check if the audio element has been initialized
+  if (!audioRef.current) {
+    // If the element doesn't exist yet, create it.
+    audioRef.current = new Audio('/alert.wav');
+    audioRef.current.volume = 0.5; // Optional: Set volume
+  }
+  
+  // 2. Safely play the audio
+  audioRef.current.play().catch(error => {
+    // Handle cases where the browser blocks autoplay (common)
+    console.error("Failed to play local audio:", error);      
             });
         }
     }
