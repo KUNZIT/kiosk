@@ -11,7 +11,7 @@ const CONFIG = {
   // USDT Contract Address (Ethereum Mainnet)
   USDT_CONTRACT_ADDRESS: "0xdAC17F958D2ee523a2206206994597C13D831ec7",
   // RPC URL (Get a free key from Infura or Alchemy)
-  RPC_URL: "https://mainnet.infura.io/v3/YOUR_INFURA_PROJECT_ID",
+  RPC_URL: "https://mainnet.infura.io/v3/5280430100c24fc592334d7be239baab",
   // Amount to verify (1 USDT = 1000000 units usually, checking for > 0 here)
   REQUIRED_AMOUNT: 1.0,
   // Inactivity timeout in milliseconds (e.g., 60 seconds)
