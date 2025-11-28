@@ -1,13 +1,10 @@
-import type { NextConfig } from "next";
-
-const nextConfig: NextConfig = {
-  // We remove all the experimental/turbopack settings, as they are not needed in Next.js 14.
-
+/** @type {import('next').NextConfig} */
+const nextConfig = {
   // 1. Dependency Fix (for pino/thread-stream): 
-  // Next.js 14 uses serverComponentsExternalPackages, not serverExternalPackages.
+  // Using the Next.js 14/15 key for externalizing Server Components packages.
   serverComponentsExternalPackages: ["pino", "pino-pretty", "thread-stream"],
 
-  // 2. Ignore TS errors due to library version conflicts (still useful).
+  // 2. Ignore TS errors during build (still useful, even if the file is JS)
   typescript: {
     ignoreBuildErrors: true,
   },
@@ -22,4 +19,4 @@ const nextConfig: NextConfig = {
   },
 };
 
-export default nextConfig;
+module.exports = nextConfig;
