@@ -39,7 +39,6 @@ export default function PaymentApp() {
     });
 
     // Wagmi hook to wait for transaction confirmation
-    // FIX: Changed useWaitForTransaction to useWaitForTransactionReceipt
     const { isSuccess: isTxConfirmed } = useWaitForTransactionReceipt({
         hash: sendTxData?.hash,
     });
@@ -69,34 +68,48 @@ export default function PaymentApp() {
         playSuccessSound();
     };
 
-    // --- Handle Connection/Transaction Flow ---
+    // --- NEW: Handle the "Pay" Button Click ---
+    const handlePay = useCallback(() => {
+        setView('payment'); // Enter the payment status view
+        resetInactivityTimer();
 
+        if (!isConnected) {
+            // If disconnected, open the modal for connection (QR code)
+            setStatus("Waiting for Wallet Connection...");
+            open();
+        } else if (chainId !== sepolia.id) {
+            // If connected but on wrong network, prompt network switch
+            setStatus("Wrong Network. Please switch to Sepolia.");
+            open({ view: 'Networks' });
+        } else {
+            // If connected and on correct network, send transaction immediately
+            setStatus(`Wallet connected: ${address?.slice(0, 6)}... Confirming transaction...`);
+            sendTransaction();
+        }
+    }, [isConnected, chainId, address, open, sendTransaction, resetInactivityTimer]);
+
+
+    // --- Monitor Connection Changes WHILE in the payment view (If modal was just closed) ---
     useEffect(() => {
         if (view === 'payment') {
             resetInactivityTimer();
-
-            // 1. Wallet Connect/Network Check
-            if (!isConnected) {
-                setStatus("Waiting for Wallet Connection...");
-                // Open the modal, which shows the QR code
-                open(); 
-            } else if (chainId !== sepolia.id) {
-                setStatus("Wrong Network. Please switch to Sepolia.");
-                // Prompt user to switch network
-                open({ view: 'Networks' }); 
-            } else {
-                setStatus(`Wallet connected: ${address?.slice(0, 6)}...`);
-                // 2. Wallet Connected and on Sepolia -> Send Transaction
-                if (!sendTxData) {
-                    // This is the trigger to open the MetaMask transaction screen
-                    sendTransaction();
-                    setStatus("Confirming transaction in wallet...");
-                } else {
-                    setStatus("Transaction pending...");
-                }
+            
+            // This monitors state changes (like user closing modal or connecting successfully)
+            if (isConnected && chainId === sepolia.id && !sendTxData) {
+                // If user just connected successfully from the modal, initiate transaction.
+                setStatus(`Wallet connected: ${address?.slice(0, 6)}... Confirming transaction...`);
+                sendTransaction();
+            } else if (isConnected && chainId !== sepolia.id) {
+                 setStatus("Wrong Network. Please switch to Sepolia.");
+            } else if (isConnected && sendTxData) {
+                // Transaction initiated, now waiting for confirmation
+                setStatus("Transaction pending...");
+            } else if (!isConnected) {
+                 // If somehow disconnected while in payment view, go back to waiting for connection
+                 setStatus("Waiting for Wallet Connection...");
             }
         }
-    }, [view, isConnected, chainId, sendTxData, address, open, resetInactivityTimer, sendTransaction]);
+    }, [view, isConnected, chainId, sendTxData, address, resetInactivityTimer, sendTransaction]);
 
     // --- Handle Confirmation ---
     useEffect(() => {
@@ -143,7 +156,6 @@ export default function PaymentApp() {
                 {/* VIEW: LANDING */}
                 {view === 'landing' && (
                     <div className="text-center space-y-8 animate-fade-in">
-                        {/* ... (Landing page content remains the same) ... */}
                         <div className="mb-8 relative">
                             <div className="absolute -inset-1 bg-gradient-to-r from-emerald-500 to-blue-500 rounded-full blur opacity-25"></div>
                             <div className="relative bg-slate-800 p-6 rounded-full inline-block">
@@ -155,7 +167,8 @@ export default function PaymentApp() {
                             Secure, instant blockchain payments powered by Sepolia ETH.
                         </p>
                         <button
-                            onClick={() => setView('payment')}
+                            // FIX: Call the new handler function
+                            onClick={handlePay} 
                             className="group relative inline-flex items-center gap-3 px-8 py-4 bg-emerald-500 hover:bg-emerald-400 text-slate-900 rounded-xl font-bold text-xl transition-all transform hover:scale-105 active:scale-95 shadow-lg shadow-emerald-500/20"
                         >
                             <span>Pay {CONFIG.REQUIRED_AMOUNT} ETH</span>
@@ -173,7 +186,7 @@ export default function PaymentApp() {
                         </div>
                         
                         <div className="h-52 flex flex-col items-center justify-center">
-                            {/* WalletConnect QR/Modal will automatically appear */}
+                            {/* WalletConnect QR/Modal will automatically appear or has already appeared */}
                             <p className="text-slate-600 font-medium mb-4">
                                 Use the **QR Code** that opens automatically to connect your wallet.
                             </p>
@@ -212,7 +225,6 @@ export default function PaymentApp() {
                 {/* VIEW: SUCCESS POPUP */}
                 {view === 'success' && (
                     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/90 backdrop-blur-sm animate-fade-in">
-                        {/* ... (Success popup content remains the same) ... */}
                         <div className="bg-slate-800 p-8 rounded-3xl shadow-2xl border border-emerald-500/30 max-w-md w-full text-center relative overflow-hidden">
                             <div className="absolute inset-0 opacity-10 bg-[radial-gradient(circle_at_center,_var(--tw-gradient-stops))] from-emerald-500 via-transparent to-transparent"></div>
                             <div className="relative z-10">
@@ -241,7 +253,6 @@ export default function PaymentApp() {
             </main>
 
             <style>{`
-                /* ... (Styles remain the same) ... */
                 @keyframes fade-in {
                     from { opacity: 0; }
                     to { opacity: 1; }
