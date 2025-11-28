@@ -9,6 +9,7 @@
     "lint": "eslint"
   },
   "dependencies": {
+    "@tanstack/react-query": "5.37.1",
     "@coinbase/wallet-sdk": "^4.3.7",
     "@wagmi/core": "^3.0.0",
     "@web3modal/wagmi": "^5.1.11",
