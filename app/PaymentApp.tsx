@@ -2,9 +2,14 @@
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { CreditCard, Zap, RefreshCw, Activity, Lock } from 'lucide-react';
-import { useWeb3Modal } from '@web3modal/wagmi/react';
-// FIX: Replace useWaitForTransaction with useWaitForTransactionReceipt (Wagmi V2 update)
-import { useAccount, useSendTransaction, useWaitForTransactionReceipt } from 'wagmi'; 
+// We still keep useWeb3Modal for network switching, but use wagmi for the initial connection
+import { useWeb3Modal } from '@web3modal/wagmi/react'; 
+import { 
+  useAccount, 
+  useSendTransaction, 
+  useWaitForTransactionReceipt, 
+  useConnect // <--- NEW IMPORT
+} from 'wagmi'; 
 import { parseEther } from 'viem';
 import { sepolia } from 'wagmi/chains';
 
@@ -19,27 +24,30 @@ const CONFIG = {
 export default function PaymentApp() {
     const [view, setView] = useState('landing'); 
     const [status, setStatus] = useState('Idle');
-    const [txHash, setTxHash] = useState<string>('');
+    const [txHash, setTxHash] = useState('');
     
-    const audioRef = useRef<HTMLAudioElement | null>(null);
-    const timerRef = useRef<NodeJS.Timeout | null>(null);
+    const audioRef = useRef(null);
+    const timerRef = useRef(null);
 
-    // Wagmi Hooks for Wallet Interaction
+    // --- Wagmi Hooks ---
     const { open } = useWeb3Modal();
     const { address, isConnected, chainId } = useAccount();
+    
+    // NEW: Get connectors and the connect function
+    const { connect, connectors, error: connectError } = useConnect();
 
-    // Convert ETH amount to Wei (BigInt format required by viem)
+    // Convert ETH amount to Wei
     const amountWei = parseEther(CONFIG.REQUIRED_AMOUNT.toString());
 
-    // Wagmi hook to send transaction
-    const { data: sendTxData, sendTransaction } = useSendTransaction({
-        to: CONFIG.MERCHANT_ADDRESS as `0x${string}`,
-        value: amountWei,
-        chainId: sepolia.id,
+    // Send Transaction Hook
+    const { data: sendTxData, sendTransaction, isPending: isTxPending } = useSendTransaction({
+        // Note: 'to' and 'value' can be passed directly to the function call or here
+        mutation: {
+             onError: (error) => setStatus(`Tx Failed: ${error.message.slice(0, 20)}...`)
+        }
     });
 
-    // Wagmi hook to wait for transaction confirmation
-    // FIX: Changed useWaitForTransaction to useWaitForTransactionReceipt
+    // Wait for Receipt Hook
     const { isSuccess: isTxConfirmed } = useWaitForTransactionReceipt({
         hash: sendTxData?.hash,
     });
@@ -53,7 +61,6 @@ export default function PaymentApp() {
             setView('landing');
             setStatus('Idle');
             setTxHash('');
-            // TODO: Consider disconnecting wallet here if needed
         }, CONFIG.INACTIVITY_LIMIT);
     }, []);
 
@@ -63,7 +70,7 @@ export default function PaymentApp() {
         }
     }, []);
 
-    const handlePaymentSuccess = (hash: string) => {
+    const handlePaymentSuccess = (hash) => {
         setTxHash(hash);
         setView('success');
         playSuccessSound();
@@ -75,28 +82,58 @@ export default function PaymentApp() {
         if (view === 'payment') {
             resetInactivityTimer();
 
-            // 1. Wallet Connect/Network Check
+            // 1. Check Connection
             if (!isConnected) {
-                setStatus("Waiting for Wallet Connection...");
-                // Open the modal, which shows the QR code
-                open(); 
+                setStatus("Generating Secure QR Code...");
+                
+                // FIX: Instead of generic open(), find WalletConnect specific connector
+                const walletConnectConnector = connectors.find(c => c.id === 'walletConnect');
+                
+                if (walletConnectConnector) {
+                    // This forces the WalletConnect QR modal specifically
+                    connect({ connector: walletConnectConnector });
+                } else {
+                    // Fallback if WalletConnect connector not found
+                    console.warn("WalletConnect connector not found, using default modal");
+                    open(); 
+                }
+
             } else if (chainId !== sepolia.id) {
                 setStatus("Wrong Network. Please switch to Sepolia.");
-                // Prompt user to switch network
                 open({ view: 'Networks' }); 
             } else {
-                setStatus(`Wallet connected: ${address?.slice(0, 6)}...`);
+                setStatus(`Connected: ${address?.slice(0, 6)}...`);
+                
                 // 2. Wallet Connected and on Sepolia -> Send Transaction
-                if (!sendTxData) {
-                    // This is the trigger to open the MetaMask transaction screen
-                    sendTransaction();
-                    setStatus("Confirming transaction in wallet...");
-                } else {
+                // We check !sendTxData to ensure we don't spam the prompt
+                if (!sendTxData && !isTxPending && !txHash) {
+                    setStatus("Please confirm on your phone...");
+                    
+                    sendTransaction({
+                        to: CONFIG.MERCHANT_ADDRESS,
+                        value: amountWei,
+                        chainId: sepolia.id
+                    });
+                } else if (isTxPending) {
                     setStatus("Transaction pending...");
                 }
             }
         }
-    }, [view, isConnected, chainId, sendTxData, address, open, resetInactivityTimer, sendTransaction]);
+    }, [
+        view, 
+        isConnected, 
+        chainId, 
+        sendTxData, 
+        address, 
+        open, 
+        resetInactivityTimer, 
+        sendTransaction,
+        connect,      // Dep dependency
+        connectors,   // Dep dependency
+        isTxPending,  // Dep dependency
+        txHash,
+        amountWei
+    ]);
 
     // --- Handle Confirmation ---
     useEffect(() => {
@@ -108,17 +145,14 @@ export default function PaymentApp() {
 
     // Set up activity monitoring
     useEffect(() => {
-        window.addEventListener('mousemove', resetInactivityTimer);
-        window.addEventListener('click', resetInactivityTimer);
-        window.addEventListener('keydown', resetInactivityTimer);
-        window.addEventListener('touchstart', resetInactivityTimer);
+        const events = ['mousemove', 'click', 'keydown', 'touchstart'];
+        events.forEach(event => window.addEventListener(event, resetInactivityTimer));
+        
         resetInactivityTimer();
+        
         return () => {
             if (timerRef.current) clearTimeout(timerRef.current);
-            window.removeEventListener('mousemove', resetInactivityTimer);
-            window.removeEventListener('click', resetInactivityTimer);
-            window.removeEventListener('keydown', resetInactivityTimer);
-            window.removeEventListener('touchstart', resetInactivityTimer);
+            events.forEach(event => window.removeEventListener(event, resetInactivityTimer));
         };
     }, [resetInactivityTimer]);
 
@@ -143,7 +177,6 @@ export default function PaymentApp() {
                 {/* VIEW: LANDING */}
                 {view === 'landing' && (
                     <div className="text-center space-y-8 animate-fade-in">
-                        {/* ... (Landing page content remains the same) ... */}
                         <div className="mb-8 relative">
                             <div className="absolute -inset-1 bg-gradient-to-r from-emerald-500 to-blue-500 rounded-full blur opacity-25"></div>
                             <div className="relative bg-slate-800 p-6 rounded-full inline-block">
@@ -164,7 +197,7 @@ export default function PaymentApp() {
                     </div>
                 )}
 
-                {/* VIEW: PAYMENT (WalletConnect Modal handles QR) */}
+                {/* VIEW: PAYMENT */}
                 {view === 'payment' && (
                     <div className="bg-white p-8 rounded-3xl shadow-2xl shadow-emerald-500/10 max-w-sm w-full text-center animate-fade-in-up">
                         <div className="mb-6 flex justify-between items-center text-slate-500">
@@ -173,13 +206,19 @@ export default function PaymentApp() {
                         </div>
                         
                         <div className="h-52 flex flex-col items-center justify-center">
-                            {/* WalletConnect QR/Modal will automatically appear */}
-                            <p className="text-slate-600 font-medium mb-4">
-                                Use the **QR Code** that opens automatically to connect your wallet.
-                            </p>
+                            {/* The specific logic in useEffect triggers the QR modal */}
+                            {!isConnected ? (
+                                <div className="text-slate-600 font-medium mb-4 animate-pulse">
+                                    Loading QR Code...
+                                </div>
+                            ) : (
+                                <div className="text-emerald-500 font-bold text-xl">
+                                    Wallet Connected!
+                                </div>
+                            )}
                             
                             {isConnected && chainId === sepolia.id && !sendTxData && (
-                                <p className="text-emerald-500 font-semibold">Ready to send. Check your wallet for the transaction prompt!</p>
+                                <p className="text-emerald-600 font-semibold mt-2">Check your phone to confirm!</p>
                             )}
                         </div>
 
@@ -187,17 +226,15 @@ export default function PaymentApp() {
                             Awaiting: <span className="text-emerald-600 font-bold">{CONFIG.REQUIRED_AMOUNT} ETH</span>
                         </p>
                         
-                        {/* Display Tx Hash if available */}
                         {sendTxData && (
                             <p className="text-xs text-slate-400 font-mono break-all bg-slate-50 p-2 rounded border border-slate-100 mb-6">
                                 Tx: {sendTxData.hash.slice(0, 10)}...{sendTxData.hash.slice(-8)}
                             </p>
                         )}
 
-
                         <div className="flex justify-center items-center gap-2 text-emerald-600 animate-pulse text-sm font-semibold mb-6">
                             <RefreshCw size={16} className="animate-spin" />
-                            {isTxConfirmed ? 'Confirmation received!' : 'Waiting for confirmation...'}
+                            {isTxConfirmed ? 'Confirmation received!' : 'Waiting...'}
                         </div>
 
                         <button
@@ -212,7 +249,6 @@ export default function PaymentApp() {
                 {/* VIEW: SUCCESS POPUP */}
                 {view === 'success' && (
                     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/90 backdrop-blur-sm animate-fade-in">
-                        {/* ... (Success popup content remains the same) ... */}
                         <div className="bg-slate-800 p-8 rounded-3xl shadow-2xl border border-emerald-500/30 max-w-md w-full text-center relative overflow-hidden">
                             <div className="absolute inset-0 opacity-10 bg-[radial-gradient(circle_at_center,_var(--tw-gradient-stops))] from-emerald-500 via-transparent to-transparent"></div>
                             <div className="relative z-10">
@@ -225,9 +261,6 @@ export default function PaymentApp() {
                                     <p className="text-slate-500 text-xs uppercase tracking-widest mb-1">Transaction Hash</p>
                                     <p className="text-slate-300 text-xs font-mono break-all">{txHash || "0x..."}</p>
                                 </div>
-                                <div className="text-xs text-slate-500 mb-8">
-                                    Payment confirmed on the Sepolia testnet.
-                                </div>
                                 <button
                                     onClick={() => setView('landing')}
                                     className="w-full py-4 bg-white hover:bg-slate-100 text-slate-900 rounded-xl font-bold transition-colors"
@@ -239,9 +272,7 @@ export default function PaymentApp() {
                     </div>
                 )}
             </main>
-
-            <style>{`
-                /* ... (Styles remain the same) ... */
+             <style>{`
                 @keyframes fade-in {
                     from { opacity: 0; }
                     to { opacity: 1; }
