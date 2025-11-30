@@ -2,9 +2,9 @@
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { CreditCard, Zap, RefreshCw, Activity, Lock } from 'lucide-react';
-import { QRCodeSVG } from 'qrcode.react'; // <--- NEW LIBRARY
-import { useAccount, usePublicClient } from 'wagmi'; 
-import { parseEther, formatEther } from 'viem';
+import { QRCodeSVG } from 'qrcode.react';
+import { useAccount, usePublicClient } from 'wagmi';
+import { parseEther } from 'viem';
 import { sepolia } from 'wagmi/chains';
 
 const CONFIG = {
@@ -12,11 +12,12 @@ const CONFIG = {
     MERCHANT_ADDRESS: "0x35321cc55704948ee8c79f3c03cd0fcb055a3ac0".toLowerCase(),
     REQUIRED_AMOUNT: 0.001,
     INACTIVITY_LIMIT: 60000,
-    AUDIO_SRC: "/sounds/success.mp3"
+    // FIXED: Pointing to the file in the public folder
+    AUDIO_SRC: "/alert.wav"
 };
 
 export default function PaymentApp() {
-    const [view, setView] = useState('landing'); 
+    const [view, setView] = useState('landing');
     const [status, setStatus] = useState('Idle');
     const [txHash, setTxHash] = useState('');
     
@@ -49,7 +50,15 @@ export default function PaymentApp() {
 
     const playSuccessSound = useCallback(() => {
         if (audioRef.current) {
-            audioRef.current.play().catch(error => console.error("Failed to play audio:", error));
+            // Reset time to 0 in case it played recently
+            audioRef.current.currentTime = 0;
+            const playPromise = audioRef.current.play();
+            
+            if (playPromise !== undefined) {
+                playPromise.catch(error => {
+                    console.error("Audio playback failed (Check browser autoplay settings):", error);
+                });
+            }
         }
     }, []);
 
@@ -137,7 +146,11 @@ export default function PaymentApp() {
 
     return (
         <div className="min-h-screen bg-slate-900 text-white font-sans selection:bg-emerald-500 selection:text-white relative overflow-hidden">
-            <audio ref={audioRef} src={CONFIG.AUDIO_SRC} />
+            {/* AUDIO ELEMENT
+                preload="auto" ensures it is loaded and ready.
+                src points to public/alert.wav 
+            */}
+            <audio ref={audioRef} src={CONFIG.AUDIO_SRC} preload="auto" />
 
             {/* Header / Status Bar */}
             <div className="absolute top-0 w-full p-4 flex justify-between items-center bg-slate-800/50 backdrop-blur-md z-10 border-b border-slate-700">
