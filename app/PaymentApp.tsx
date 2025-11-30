@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { CreditCard, Zap, RefreshCw, Activity, Lock } from 'lucide-react';
+import { CreditCard, Zap, RefreshCw, Lock } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
 import { useAccount, usePublicClient } from 'wagmi';
 import { parseEther } from 'viem';
@@ -11,14 +11,11 @@ const CONFIG = {
     // Ensure this address is lowercase for comparison logic
     MERCHANT_ADDRESS: "0x35321cc55704948ee8c79f3c03cd0fcb055a3ac0".toLowerCase(),
     REQUIRED_AMOUNT: 0.001,
-    INACTIVITY_LIMIT: 60000,
-    // FIXED: Pointing to the file in the public folder
     AUDIO_SRC: "/alert.wav"
 };
 
 export default function PaymentApp() {
     const [view, setView] = useState('landing');
-    const [status, setStatus] = useState('Idle');
     const [txHash, setTxHash] = useState('');
     
     // We track the block number when the user started the payment flow
@@ -26,27 +23,16 @@ export default function PaymentApp() {
     const [startBlock, setStartBlock] = useState<bigint>(0n);
 
     const audioRef = useRef<HTMLAudioElement | null>(null);
-    const timerRef = useRef<NodeJS.Timeout | null>(null);
 
     // Wagmi hook to read from blockchain
     const publicClient = usePublicClient();
-    const { isConnected: isAppConnected } = useAccount(); // Only used for status check, not payment
+    const { isConnected: isAppConnected } = useAccount(); 
 
     // Create the Standard Payment URI (EIP-681)
     // Format: ethereum:ADDRESS@CHAIN_ID?value=AMOUNT_IN_WEI
     const paymentURI = `ethereum:${CONFIG.MERCHANT_ADDRESS}@${sepolia.id}?value=${parseEther(CONFIG.REQUIRED_AMOUNT.toString()).toString()}`;
 
     // --- Utility Functions ---
-
-    const resetInactivityTimer = useCallback(() => {
-        if (timerRef.current) clearTimeout(timerRef.current);
-        timerRef.current = setTimeout(() => {
-            console.log("User inactive. Resetting...");
-            setView('landing');
-            setStatus('Idle');
-            setTxHash('');
-        }, CONFIG.INACTIVITY_LIMIT);
-    }, []);
 
     const playSuccessSound = useCallback(() => {
         if (audioRef.current) {
@@ -81,8 +67,7 @@ export default function PaymentApp() {
 
                 // 2. Only check if a new block has been mined since we started
                 if (currentBlock >= startBlock) {
-                    setStatus("Scanning blockchain for payment...");
-
+                    
                     // 3. Get the full block with transactions
                     const block = await publicClient.getBlock({ 
                         blockNumber: currentBlock, 
@@ -100,7 +85,6 @@ export default function PaymentApp() {
                     });
 
                     if (foundTx) {
-                        setStatus("Payment Detected! Verifying...");
                         handlePaymentSuccess(foundTx.hash);
                     }
                 }
@@ -111,7 +95,7 @@ export default function PaymentApp() {
 
         // Start polling when in payment view
         if (view === 'payment') {
-            // Poll every 3 seconds (average block time varies, 3s is snappy enough)
+            // Poll every 3 seconds
             intervalId = setInterval(checkRecentBlocks, 3000);
         }
 
@@ -122,43 +106,19 @@ export default function PaymentApp() {
     // Initialize the Start Block when entering payment view
     useEffect(() => {
         if (view === 'payment' && publicClient) {
-            setStatus("Ready to scan");
             publicClient.getBlockNumber().then(blockNum => {
                 setStartBlock(blockNum);
             });
-            resetInactivityTimer();
         }
-    }, [view, publicClient, resetInactivityTimer]);
-
-
-    // Set up user activity monitoring to reset timer
-    useEffect(() => {
-        const events = ['mousemove', 'click', 'keydown', 'touchstart'];
-        events.forEach(event => window.addEventListener(event, resetInactivityTimer));
-        return () => {
-            if (timerRef.current) clearTimeout(timerRef.current);
-            events.forEach(event => window.removeEventListener(event, resetInactivityTimer));
-        };
-    }, [resetInactivityTimer]);
+    }, [view, publicClient]);
 
 
     // --- Component Rendering ---
 
     return (
         <div className="min-h-screen bg-slate-900 text-white font-sans selection:bg-emerald-500 selection:text-white relative overflow-hidden">
-            {/* AUDIO ELEMENT
-                preload="auto" ensures it is loaded and ready.
-                src points to public/alert.wav 
-            */}
+            
             <audio ref={audioRef} src={CONFIG.AUDIO_SRC} preload="auto" />
-
-            {/* Header / Status Bar */}
-            <div className="absolute top-0 w-full p-4 flex justify-between items-center bg-slate-800/50 backdrop-blur-md z-10 border-b border-slate-700">
-                <div className="flex items-center gap-2 text-emerald-400">
-                    <Activity size={18} />
-                    <span className="text-sm font-mono tracking-wider">SYSTEM: {status}</span>
-                </div>
-            </div>
 
             {/* MAIN CONTENT AREA */}
             <main className="flex flex-col items-center justify-center min-h-screen p-6">
