@@ -12,7 +12,8 @@ const CONFIG = {
     MERCHANT_ADDRESS: "0x35321cc55704948ee8c79f3c03cd0fcb055a3ac0".toLowerCase(),
     REQUIRED_AMOUNT: 0.001,
     AUDIO_SRC: "/alert.wav",
-    PAYMENT_TIMEOUT: 50, // Total seconds
+    PAYMENT_TIMEOUT: 50, // Seconds for payment flow
+    SUCCESS_TIMEOUT: 10, // Seconds for success screen
     BLUR_THRESHOLD: 25   // Seconds remaining when blur triggers
 };
 
@@ -20,8 +21,11 @@ export default function PaymentApp() {
     const [view, setView] = useState('landing');
     const [txHash, setTxHash] = useState('');
     
-    // Timer state
+    // Timer state for Payment Flow
     const [timeLeft, setTimeLeft] = useState(CONFIG.PAYMENT_TIMEOUT);
+    
+    // Timer state for Success Flow
+    const [successTimeLeft, setSuccessTimeLeft] = useState(CONFIG.SUCCESS_TIMEOUT);
 
     // We track the block number when the user started the payment flow
     const [startBlock, setStartBlock] = useState<bigint>(0n);
@@ -37,12 +41,13 @@ export default function PaymentApp() {
 
     // --- Utility Functions ---
 
-    // Centralized cancel function to be used by button AND timer
-    const handleCancel = useCallback(() => {
+    // Centralized cancel/reset function
+    const handleReset = useCallback(() => {
         setView('landing');
         setTxHash('');
-        // Reset timer for next time
+        // Reset timers
         setTimeLeft(CONFIG.PAYMENT_TIMEOUT);
+        setSuccessTimeLeft(CONFIG.SUCCESS_TIMEOUT);
     }, []);
 
     const playSuccessSound = useCallback(() => {
@@ -63,28 +68,45 @@ export default function PaymentApp() {
         playSuccessSound();
     };
 
-    // --- Timer Logic ---
+    // --- Timer Logic (Payment Flow) ---
     useEffect(() => {
         let timerId: NodeJS.Timeout;
 
         if (view === 'payment') {
-            // Reset timer when entering payment view
             setTimeLeft(CONFIG.PAYMENT_TIMEOUT);
-
             timerId = setInterval(() => {
                 setTimeLeft((prevTime) => {
                     if (prevTime <= 1) {
                         clearInterval(timerId);
-                        handleCancel(); // Auto-cancel when time is up
+                        handleReset(); // Auto-cancel
                         return 0;
                     }
                     return prevTime - 1;
                 });
             }, 1000);
         }
-
         return () => clearInterval(timerId);
-    }, [view, handleCancel]);
+    }, [view, handleReset]);
+
+    // --- Timer Logic (Success Flow) ---
+    useEffect(() => {
+        let timerId: NodeJS.Timeout;
+
+        if (view === 'success') {
+            setSuccessTimeLeft(CONFIG.SUCCESS_TIMEOUT);
+            timerId = setInterval(() => {
+                setSuccessTimeLeft((prevTime) => {
+                    if (prevTime <= 1) {
+                        clearInterval(timerId);
+                        handleReset(); // Auto-close success screen
+                        return 0;
+                    }
+                    return prevTime - 1;
+                });
+            }, 1000);
+        }
+        return () => clearInterval(timerId);
+    }, [view, handleReset]);
 
     // --- The Watcher Logic ---
     useEffect(() => {
@@ -161,19 +183,18 @@ export default function PaymentApp() {
                     </div>
                 )}
 
-                {/* VIEW: PAYMENT (Direct QR Mode) */}
+                {/* VIEW: PAYMENT */}
                 {view === 'payment' && (
                     <div className="bg-white p-8 rounded-3xl shadow-2xl shadow-emerald-500/10 max-w-sm w-full text-center animate-fade-in-up">
                         <div className="mb-6 flex justify-between items-center text-slate-500">
                             <span className="text-xs font-bold tracking-widest uppercase">Scan to Pay</span>
-                            {/* REPLACED "Native ETH" with Timer */}
                             <span className={`text-xs font-mono px-2 py-1 rounded font-bold transition-colors ${timeLeft <= 10 ? 'bg-red-100 text-red-600' : 'bg-slate-100'}`}>
                                 Time left: {timeLeft}s
                             </span>
                         </div>
                         
                         <div className="flex flex-col items-center justify-center mb-6 relative">
-                            {/* The Magic QR Code with Blur Logic */}
+                            {/* The Magic QR Code */}
                             <div className={`bg-white p-2 border-2 border-emerald-500 rounded-xl shadow-lg transition-all duration-700 ease-in-out ${timeLeft <= CONFIG.BLUR_THRESHOLD ? 'blur-md opacity-20 pointer-events-none select-none' : ''}`}>
                                 <QRCodeSVG 
                                     value={paymentURI}
@@ -183,7 +204,6 @@ export default function PaymentApp() {
                                 />
                             </div>
                             
-                            {/* Optional: Message explaining why it is blurred */}
                             {timeLeft <= CONFIG.BLUR_THRESHOLD && (
                                 <div className="absolute inset-0 flex items-center justify-center">
                                     <span className="text-slate-900 font-bold bg-white/80 px-3 py-1 rounded-full text-sm shadow-sm animate-pulse">
@@ -206,7 +226,7 @@ export default function PaymentApp() {
                         </div>
 
                         <button
-                            onClick={handleCancel}
+                            onClick={handleReset}
                             className="mt-4 text-xs text-slate-400 hover:text-slate-600 underline"
                         >
                             Cancel Transaction
@@ -218,23 +238,28 @@ export default function PaymentApp() {
                 {view === 'success' && (
                     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/90 backdrop-blur-sm animate-fade-in">
                         <div className="bg-slate-800 p-8 rounded-3xl shadow-2xl border border-emerald-500/30 max-w-md w-full text-center relative overflow-hidden">
-                            <div className="absolute inset-0 opacity-10 bg-[radial-gradient(circle_at_center,_var(--tw-gradient-stops))] from-emerald-500 via-transparent to-transparent"></div>
-                            <div className="relative z-10">
-                                <div className="mx-auto w-20 h-20 bg-emerald-500 rounded-full flex items-center justify-center mb-6 shadow-lg shadow-emerald-500/40">
-                                    <Lock size={40} className="text-white" />
-                                </div>
+                            
+                            <div className="relative z-10 flex flex-col items-center">
                                 <h2 className="text-3xl font-bold text-white mb-2">Payment Verified!</h2>
-                                <p className="text-emerald-400 text-lg mb-6">Access Granted</p>
-                                <div className="bg-slate-900/50 p-4 rounded-xl mb-6 text-left">
-                                    <p className="text-slate-500 text-xs uppercase tracking-widest mb-1">Transaction Hash</p>
-                                    <p className="text-slate-300 text-xs font-mono break-all">{txHash || "0x..."}</p>
+                                <p className="text-emerald-400 text-lg mb-8">Access Granted</p>
+
+                                {/* THE CUP ANIMATION */}
+                                <div className="relative w-24 h-32 border-4 border-white/20 border-t-0 rounded-b-2xl mb-8 overflow-hidden bg-slate-700/50 backdrop-blur-sm">
+                                    {/* Liquid filling up */}
+                                    <div className="absolute bottom-0 left-0 w-full bg-gradient-to-t from-emerald-600 to-emerald-400 animate-fill-cup shadow-[0_0_20px_rgba(16,185,129,0.5)]"></div>
+                                    
+                                    {/* Cup Glare/Reflection */}
+                                    <div className="absolute top-0 right-2 w-2 h-full bg-white/10 rounded-full blur-[1px]"></div>
                                 </div>
-                                <button
-                                    onClick={() => setView('landing')}
-                                    className="w-full py-4 bg-white hover:bg-slate-100 text-slate-900 rounded-xl font-bold transition-colors"
-                                >
-                                    Done
-                                </button>
+
+                                <div className="w-full text-center">
+                                    <p className="text-slate-500 text-xs font-mono uppercase tracking-widest mb-1">
+                                        Closing in
+                                    </p>
+                                    <p className="text-2xl font-bold text-white">
+                                        {successTimeLeft}s
+                                    </p>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -249,8 +274,13 @@ export default function PaymentApp() {
                     from { opacity: 0; transform: translateY(20px); }
                     to { opacity: 1; transform: translateY(0); }
                 }
+                @keyframes fill-cup {
+                    from { height: 0%; }
+                    to { height: 100%; }
+                }
                 .animate-fade-in { animation: fade-in 0.5s ease-out; }
                 .animate-fade-in-up { animation: fade-in-up 0.5s ease-out; }
+                .animate-fill-cup { animation: fill-cup 10s linear forwards; }
             `}</style>
         </div>
     );
