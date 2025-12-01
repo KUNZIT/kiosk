@@ -13,13 +13,17 @@ const CONFIG = {
     REQUIRED_AMOUNT: 0.001,
     AUDIO_SRC: "/alert.wav",
     PAYMENT_TIMEOUT: 50, // Seconds for payment flow
-    SUCCESS_TIMEOUT: 10, // Seconds for success screen
+    SUCCESS_TIMEOUT: 10, // Seconds for liquid animation
+    FINAL_MESSAGE_DURATION: 2000, // ms to show "Thank you"
     BLUR_THRESHOLD: 25   // Seconds remaining when blur triggers
 };
 
 export default function PaymentApp() {
     const [view, setView] = useState('landing');
     const [txHash, setTxHash] = useState('');
+    
+    // NEW: Track which phase of success we are in: 'timer' | 'message'
+    const [successPhase, setSuccessPhase] = useState<'timer' | 'message'>('timer');
     
     // Timer state for Payment Flow
     const [timeLeft, setTimeLeft] = useState(CONFIG.PAYMENT_TIMEOUT);
@@ -45,7 +49,7 @@ export default function PaymentApp() {
     const handleReset = useCallback(() => {
         setView('landing');
         setTxHash('');
-        // Reset timers
+        setSuccessPhase('timer'); // Reset phase
         setTimeLeft(CONFIG.PAYMENT_TIMEOUT);
         setSuccessTimeLeft(CONFIG.SUCCESS_TIMEOUT);
     }, []);
@@ -65,6 +69,7 @@ export default function PaymentApp() {
     const handlePaymentSuccess = (hash: string) => {
         setTxHash(hash);
         setView('success');
+        setSuccessPhase('timer'); // Ensure we start at timer
         playSuccessSound();
     };
 
@@ -88,17 +93,18 @@ export default function PaymentApp() {
         return () => clearInterval(timerId);
     }, [view, handleReset]);
 
-    // --- Timer Logic (Success Flow) ---
+    // --- Timer Logic (Success Flow - Phase 1: Countdown) ---
     useEffect(() => {
         let timerId: NodeJS.Timeout;
 
-        if (view === 'success') {
+        if (view === 'success' && successPhase === 'timer') {
             setSuccessTimeLeft(CONFIG.SUCCESS_TIMEOUT);
             timerId = setInterval(() => {
                 setSuccessTimeLeft((prevTime) => {
                     if (prevTime <= 1) {
                         clearInterval(timerId);
-                        handleReset(); // Auto-close success screen
+                        // instead of resetting, we switch phase
+                        setSuccessPhase('message'); 
                         return 0;
                     }
                     return prevTime - 1;
@@ -106,7 +112,21 @@ export default function PaymentApp() {
             }, 1000);
         }
         return () => clearInterval(timerId);
-    }, [view, handleReset]);
+    }, [view, successPhase]); // Removed handleReset from deps here
+
+    // --- Logic (Success Flow - Phase 2: Final Message) ---
+    useEffect(() => {
+        let timeoutId: NodeJS.Timeout;
+
+        if (view === 'success' && successPhase === 'message') {
+            // Wait for 2 seconds (CONFIG.FINAL_MESSAGE_DURATION) then reset
+            timeoutId = setTimeout(() => {
+                handleReset();
+            }, CONFIG.FINAL_MESSAGE_DURATION);
+        }
+        
+        return () => clearTimeout(timeoutId);
+    }, [view, successPhase, handleReset]);
 
     // --- The Watcher Logic ---
     useEffect(() => {
@@ -237,35 +257,51 @@ export default function PaymentApp() {
                 {/* VIEW: SUCCESS POPUP */}
                 {view === 'success' && (
                     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/90 backdrop-blur-sm animate-fade-in">
-                        <div className="bg-slate-800 p-8 rounded-3xl shadow-2xl border border-emerald-500/30 max-w-md w-full text-center relative overflow-hidden">
+                        <div className="bg-slate-800 p-8 rounded-3xl shadow-2xl border border-emerald-500/30 max-w-md w-full text-center relative overflow-hidden transition-all duration-500 min-h-[400px] flex flex-col justify-center">
                             
-                            <div className="relative z-10 flex flex-col items-center">
-                                <h2 className="text-3xl font-bold text-white mb-2">Payment Verified!</h2>
-                                <p className="text-emerald-400 text-lg mb-8">Access Granted</p>
+                            {/* PHASE 1: CUP ANIMATION */}
+                            {successPhase === 'timer' && (
+                                <div className="animate-fade-in flex flex-col items-center">
+                                    <h2 className="text-3xl font-bold text-white mb-2">Payment Verified!</h2>
+                                    <p className="text-emerald-400 text-lg mb-8">Access Granted</p>
 
-                                {/* THE CUP ANIMATION */}
-                                <div className="relative w-24 h-32 border-4 border-white/20 border-t-0 rounded-b-2xl mb-8 overflow-hidden bg-slate-700/50 backdrop-blur-sm">
-                                    {/* Liquid filling up */}
-                                    <div className="absolute bottom-0 left-0 w-full bg-gradient-to-t from-emerald-600 to-emerald-400 animate-fill-cup shadow-[0_0_20px_rgba(16,185,129,0.5)]"></div>
-                                    
-                                    {/* Cup Glare/Reflection */}
-                                    <div className="absolute top-0 right-2 w-2 h-full bg-white/10 rounded-full blur-[1px]"></div>
-                                </div>
+                                    {/* THE CUP ANIMATION */}
+                                    <div className="relative w-24 h-32 border-4 border-white/20 border-t-0 rounded-b-2xl mb-8 overflow-hidden bg-slate-700/50 backdrop-blur-sm">
+                                        {/* Liquid filling up */}
+                                        <div className="absolute bottom-0 left-0 w-full bg-gradient-to-t from-emerald-600 to-emerald-400 animate-fill-cup shadow-[0_0_20px_rgba(16,185,129,0.5)]"></div>
+                                        
+                                        {/* Cup Glare/Reflection */}
+                                        <div className="absolute top-0 right-2 w-2 h-full bg-white/10 rounded-full blur-[1px]"></div>
+                                    </div>
 
-                                <div className="w-full text-center">
-                                    <p className="text-slate-500 text-xs font-mono uppercase tracking-widest mb-1">
-                                        Closing in
-                                    </p>
-                                    <p className="text-2xl font-bold text-white">
-                                        {successTimeLeft}s
+                                    <div className="w-full text-center">
+                                        <p className="text-slate-500 text-xs font-mono uppercase tracking-widest mb-1">
+                                            Closing in
+                                        </p>
+                                        <p className="text-2xl font-bold text-white">
+                                            {successTimeLeft}s
+                                        </p>
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* PHASE 2: THANK YOU MESSAGE */}
+                            {successPhase === 'message' && (
+                                <div className="absolute inset-0 flex flex-col items-center justify-center animate-fade-in p-6 bg-slate-800 rounded-3xl z-20">
+                                     <h2 className="text-5xl font-black text-transparent bg-clip-text bg-gradient-to-br from-white to-emerald-200 mb-4 animate-scale-in">
+                                        Here you are!
+                                    </h2>
+                                    <p className="text-2xl text-emerald-400 font-medium">
+                                        Thank you!
                                     </p>
                                 </div>
-                            </div>
+                            )}
+
                         </div>
                     </div>
                 )}
             </main>
-             <style>{`
+            <style>{`
                 @keyframes fade-in {
                     from { opacity: 0; }
                     to { opacity: 1; }
@@ -274,12 +310,17 @@ export default function PaymentApp() {
                     from { opacity: 0; transform: translateY(20px); }
                     to { opacity: 1; transform: translateY(0); }
                 }
+                @keyframes scale-in {
+                    from { opacity: 0; transform: scale(0.9); }
+                    to { opacity: 1; transform: scale(1); }
+                }
                 @keyframes fill-cup {
                     from { height: 0%; }
                     to { height: 100%; }
                 }
                 .animate-fade-in { animation: fade-in 0.5s ease-out; }
                 .animate-fade-in-up { animation: fade-in-up 0.5s ease-out; }
+                .animate-scale-in { animation: scale-in 0.5s ease-out; }
                 .animate-fill-cup { animation: fill-cup 10s linear forwards; }
             `}</style>
         </div>
