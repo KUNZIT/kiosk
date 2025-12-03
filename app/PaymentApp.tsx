@@ -3,9 +3,11 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { RefreshCw, Lock, AlertCircle } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
-import { usePublicClient } from 'wagmi';
-import { parseEther } from 'viem';
-import { sepolia } from 'wagmi/chains';
+// We still need wagmi's usePublicClient for typical app usage, but we'll create our own fast client for the watcher.
+import { usePublicClient } from 'wagmi'; 
+// IMPORTANT: We need viem's direct client creation functions
+import { parseEther, createPublicClient, http, PublicClient } from 'viem'; 
+import { sepolia } from 'viem/chains'; // Changed from wagmi/chains to viem/chains
 
 // Define the SerialPort type globally for TypeScript compatibility
 // NOTE: This assumes you are running in a modern browser (Chrome 89+ or Edge 89+)
@@ -62,7 +64,19 @@ const CONFIG = {
     // Commands from Arduino (to trigger the app)
     BUTTON_TRIGGER_COMMAND: "BUTTON_4_PRESSED",
     RELAY_OFF_COMMAND: "RELAY_AUTO_OFF",
+
+    // FIX: Using a known, fast Sepolia RPC provider endpoint directly
+    FAST_SEPOLIA_RPC_URL: 'https://sepolia.public.blastapi.io', 
 };
+
+// Create a fast, dedicated viem client instance for polling transactions
+// This bypasses the potentially slow client from usePublicClient()
+const fastPublicClient: PublicClient = createPublicClient({
+    chain: sepolia,
+    transport: http(CONFIG.FAST_SEPOLIA_RPC_URL),
+    pollingInterval: 3000, // Ensure fast polling
+});
+
 
 export default function PaymentApp() {
     // Web3 Payment State
@@ -86,8 +100,9 @@ export default function PaymentApp() {
     const [autoConnectAttempted, setAutoConnectAttempted] = useState(false);
     const [relayIsActive, setRelayIsActive] = useState(false); // Track state based on Arduino message
 
-    // Wagmi hooks
-    const publicClient = usePublicClient();
+    // Wagmi hooks (We keep this for context, but use fastPublicClient for the watcher)
+    // NOTE: If you were to use `usePublicClient()` here, it would be the slow client.
+    // We rely on the globally defined `fastPublicClient` below.
     const paymentURI = `ethereum:${CONFIG.MERCHANT_ADDRESS}@${sepolia.id}?value=${parseEther(CONFIG.REQUIRED_AMOUNT.toString()).toString()}`;
 
     // --- UTILITY FUNCTIONS ---
@@ -389,44 +404,47 @@ export default function PaymentApp() {
 
     // --- FIX 1: Initialize Start Block when entering payment view (Reverting to working pattern) ---
     useEffect(() => {
-        if (view === 'payment' && publicClient) {
-            publicClient.getBlockNumber().then(blockNum => {
+        if (view === 'payment') {
+            // NOTE: Use the dedicated `fastPublicClient` here
+            fastPublicClient.getBlockNumber().then(blockNum => {
                 setStartBlock(blockNum);
                 console.log(`[Web3] Payment Flow Start Block set to: ${blockNum}`);
             }).catch(e => {
                 console.error("Failed to fetch block number on payment start:", e);
-                setError("Failed to connect to blockchain RPC.");
+                setError("Failed to connect to blockchain RPC. Check network status.");
             });
         }
         // Reset startBlock when leaving payment view (e.g., timeout or success reset)
         if (view !== 'payment') {
              setStartBlock(0n);
         }
-    }, [view, publicClient]);
+    }, [view]);
 
 
-    // --- FIX 2: The Watcher Logic (Robust Multi-Block Check) ---
+    // --- FIX 2: The Watcher Logic (Robust Multi-Block Check with FAST client) ---
     useEffect(() => {
         let intervalId: NodeJS.Timeout;
 
         const checkRecentBlocks = async () => {
             // Only run if we are in payment view AND the startBlock has been successfully initialized
-            if (view !== 'payment' || !publicClient || startBlock === 0n) return;
+            if (view !== 'payment' || startBlock === 0n) return;
 
             try {
-                const currentBlock = await publicClient.getBlockNumber();
+                // NOTE: Use the dedicated `fastPublicClient` here
+                const currentBlock = await fastPublicClient.getBlockNumber();
                 const requiredValue = parseEther(CONFIG.REQUIRED_AMOUNT.toString());
                 
-                // Set the maximum block to search back to (10 blocks)
-                const maxBlocksToSearch = 10n;
+                // Set the maximum block to search back to (20 blocks)
+                const maxBlocksToSearch = 20n;
                 const minBlockToSearch = currentBlock > maxBlocksToSearch ? currentBlock - maxBlocksToSearch : 0n;
 
-                // The effective start block is the LATER of the payment start block or 10 blocks ago.
+                // The effective start block is the LATER of the payment start block or 20 blocks ago.
                 const searchStartBlock = minBlockToSearch > startBlock ? minBlockToSearch : startBlock;
 
                 for (let i = currentBlock; i >= searchStartBlock; i--) {
                     // Check transactions starting from currentBlock down to searchStartBlock
-                    const block = await publicClient.getBlock({
+                    // NOTE: Use the dedicated `fastPublicClient` here
+                    const block = await fastPublicClient.getBlock({
                         blockNumber: i,
                         includeTransactions: true
                     });
@@ -460,7 +478,7 @@ export default function PaymentApp() {
         }
 
         return () => clearInterval(intervalId);
-    }, [view, publicClient, startBlock, handlePaymentSuccess]); 
+    }, [view, startBlock, handlePaymentSuccess]); 
 
     const isWebSerialSupported = typeof navigator !== "undefined" && "serial" in navigator;
 
