@@ -178,51 +178,29 @@ export default function PaymentApp() {
 
 
     // --- Component Rendering ---
-return (
-        <div className="min-h-screen bg-black text-white font-sans selection:bg-emerald-500 selection:text-white relative overflow-hidden flex items-center justify-center perspective-container">
+ return (
+        <div className="min-h-screen bg-black text-white font-sans selection:bg-emerald-500 selection:text-white relative overflow-hidden">
             
-            {/* 3D Animations Styles */}
-            <style>{`
-                .perspective-container { perspective: 1000px; }
-                .cube-wrapper {
-                    width: 24rem;  /* w-96 */
-                    height: 24rem; /* h-96 */
-                    position: relative;
-                    transform-style: preserve-3d;
-                    animation: spinCube 20s infinite linear;
-                }
-                .cube-face {
-                    position: absolute;
-                    width: 24rem; height: 24rem;
-                    backface-visibility: hidden; 
-                }
-                /* TranslateZ is half of width (12rem) */
-                .face-front { transform: rotateY(0deg) translateZ(12rem); }
-                .face-right { transform: rotateY(90deg) translateZ(12rem); }
-                .face-back  { transform: rotateY(180deg) translateZ(12rem); }
-                .face-left  { transform: rotateY(-90deg) translateZ(12rem); }
-
-                @keyframes spinCube {
-                    from { transform: rotateY(0deg); }
-                    to { transform: rotateY(360deg); } 
-                }
-                
-                /* Keep your existing fade animations */
-                @keyframes fade-in { from { opacity: 0; } to { opacity: 1; } }
-                .animate-fade-in { animation: fade-in 0.5s ease-out; }
-            `}</style>
-
             <audio ref={audioRef} src={CONFIG.AUDIO_SRC} preload="auto" />
 
-            {/* VIEW: LANDING (3D CUBE) */}
-            {view === 'landing' && (
-                <div className="cube-wrapper">
-                    <div className="cube-face face-front"><CubeFaceContent setView={setView} /></div>
-                    <div className="cube-face face-right"><CubeFaceContent setView={setView} /></div>
-                    <div className="cube-face face-back"><CubeFaceContent setView={setView} /></div>
-                    <div className="cube-face face-left"><CubeFaceContent setView={setView} /></div>
-                </div>
-            )}
+            {/* MAIN CONTENT AREA */}
+            <main className="flex flex-col items-center justify-center min-h-screen p-6">
+
+                {/* VIEW: LANDING */}
+                {view === 'landing' && (
+                    <div className="text-center space-y-8 animate-fade-in">
+                        <h1 className="text-5xl font-black tracking-tighter text-transparent bg-clip-text bg-gradient-to-r from-emerald-400 to-blue-400">
+                            ETHEREUM Sepolia
+                        </h1>
+
+                        <button
+                            onClick={() => setView('payment')}
+                            className="group relative px-8 py-4 bg-emerald-500 hover:bg-emerald-400 text-slate-900 rounded-xl font-bold text-xl transition-all transform hover:scale-105 active:scale-95 shadow-lg shadow-emerald-500/20"
+                        >
+                            <span>Pay {CONFIG.REQUIRED_AMOUNT} ETH</span>
+                        </button>
+                    </div>
+                )}
 
 
    
