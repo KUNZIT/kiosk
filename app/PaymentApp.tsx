@@ -191,7 +191,7 @@ export default function PaymentApp() {
                 {view === 'landing' && (
                     <div className="text-center space-y-8 animate-fade-in">
                         <h1 className="text-5xl font-black tracking-tighter text-transparent bg-clip-text bg-gradient-to-r from-emerald-400 to-blue-400">
-                            FUTURE PAY
+                            ETHEREUM sepolia
                         </h1>
 
                         <button
