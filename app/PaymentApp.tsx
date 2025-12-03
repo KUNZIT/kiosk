@@ -10,7 +10,7 @@ import { sepolia } from 'wagmi/chains';
 const CONFIG = {
     // Ensure this address is lowercase for comparison logic
     MERCHANT_ADDRESS: "0x35321cc55704948ee8c79f3c03cd0fcb055a3ac0".toLowerCase(),
-    REQUIRED_AMOUNT: 0.001,
+    REQUIRED_AMOUNT: 0.0001,
     AUDIO_SRC: "/alert.wav",
     PAYMENT_TIMEOUT: 50, // Seconds for payment flow
     SUCCESS_TIMEOUT: 10, // Seconds for liquid animation
@@ -191,7 +191,7 @@ export default function PaymentApp() {
                 {view === 'landing' && (
                     <div className="text-center space-y-8 animate-fade-in">
                         <h1 className="text-5xl font-black tracking-tighter text-transparent bg-clip-text bg-gradient-to-r from-emerald-400 to-blue-400">
-                            FUTURE PAY
+                            ETHEREUM Sepolia
                         </h1>
 
                         <button
@@ -227,7 +227,7 @@ export default function PaymentApp() {
                             {timeLeft <= CONFIG.BLUR_THRESHOLD && (
                                 <div className="absolute inset-0 flex items-center justify-center">
                                     <span className="text-slate-900 font-bold bg-white/80 px-3 py-1 rounded-full text-sm shadow-sm animate-pulse">
-                                        Time Expiring...
+                                        Scanning Time Expired!
                                     </span>
                                 </div>
                             )}
