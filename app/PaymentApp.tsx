@@ -3,8 +3,8 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { RefreshCw, Lock, AlertCircle } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
-import { usePublicClient } from 'wagmi'; 
-import { parseEther } from 'viem'; 
+import { usePublicClient } from 'wagmi';
+import { parseEther } from 'viem';
 import { sepolia } from 'wagmi/chains';
 
 // Define the SerialPort type globally for TypeScript compatibility
@@ -395,8 +395,8 @@ export default function PaymentApp() {
                 setError("Failed to initialize blockchain connection.");
             });
         }
-         if (view !== 'payment') {
-             setStartBlock(0n);
+          if (view !== 'payment') {
+              setStartBlock(0n);
         }
     }, [view, publicClient]);
 
@@ -463,7 +463,10 @@ export default function PaymentApp() {
 
             {/* ARDUINO CONNECTION STATUS & BUTTONS */}
             {isWebSerialSupported && (
-                <div className="absolute top-4 right-4 z-10 flex flex-col items-end space-y-2 p-3 rounded-xl bg-slate-900/70 backdrop-blur-sm shadow-xl border border-slate-700">
+                // MODIFICATION: Add 'hidden' class when isConnected is true
+                <div 
+                    className={`absolute top-4 right-4 z-10 flex flex-col items-end space-y-2 p-3 rounded-xl bg-slate-900/70 backdrop-blur-sm shadow-xl border border-slate-700 transition-opacity duration-300 ${isConnected ? 'opacity-0 pointer-events-none' : ''}`}
+                >
                     <div className='flex items-center space-x-2'>
                         {/* Status Indicator */}
                         <div className={`h-3 w-3 rounded-full ${isConnected ? 'bg-emerald-500 shadow-lg shadow-emerald-500/50' : 'bg-red-500 shadow-lg shadow-red-500/50'}`}></div>
@@ -483,6 +486,7 @@ export default function PaymentApp() {
                                 {isLoading ? "Connecting..." : "Connect USB"}
                             </button>
                         )}
+                        {/* Disconnect Button (Hidden by the parent div's class when connected, but keeping original logic for completeness) */}
                         {isConnected && (
                             <button
                                 onClick={disconnectFromArduino}
@@ -498,24 +502,24 @@ export default function PaymentApp() {
                         </span>
                     )}
                     {error && (
-                         <span className="text-xs text-red-400 font-mono">
-                            Web3 Error
-                        </span>
+                            <span className="text-xs text-red-400 font-mono">
+                                Web3 Error
+                            </span>
                     )}
                 </div>
             )}
             
             {/* WEB SERIAL UNSUPPORTED ALERT */}
             {!isWebSerialSupported && (
-                 <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-50 p-6 bg-red-900 border border-red-700 rounded-lg shadow-2xl max-w-sm text-center">
-                    <div className="flex items-center justify-center gap-2 mb-4">
-                        <AlertCircle className="h-6 w-6 text-red-300" />
-                        <h2 className="text-xl font-semibold text-red-200">Web Serial Required</h2>
+                    <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-50 p-6 bg-red-900 border border-red-700 rounded-lg shadow-2xl max-w-sm text-center">
+                        <div className="flex items-center justify-center gap-2 mb-4">
+                            <AlertCircle className="h-6 w-6 text-red-300" />
+                            <h2 className="text-xl font-semibold text-red-200">Web Serial Required</h2>
+                        </div>
+                        <p className="text-red-300 text-sm">
+                            Relay control requires the **Web Serial API** (Chrome/Edge 89+).
+                        </p>
                     </div>
-                    <p className="text-red-300 text-sm">
-                        Relay control requires the **Web Serial API** (Chrome/Edge 89+).
-                    </p>
-                </div>
             )}
             
             {/* MAIN CONTENT AREA */}
@@ -642,12 +646,12 @@ export default function PaymentApp() {
                             {/* PHASE 2: THANK YOU MESSAGE */}
                             {successPhase === 'message' && (
                                 <div className="absolute inset-0 flex flex-col items-center justify-center animate-fade-in p-6 bg-slate-800 rounded-3xl z-20">
-                                       <h2 className="text-5xl font-black text-transparent bg-clip-text bg-gradient-to-br from-white to-emerald-200 mb-4 animate-scale-in">
-                                         Here you are!
-                                       </h2>
-                                        <p className="text-2xl text-emerald-400 font-medium">
-                                            Thank you!
-                                        </p>
+                                    <h2 className="text-5xl font-black text-transparent bg-clip-text bg-gradient-to-br from-white to-emerald-200 mb-4 animate-scale-in">
+                                        Here you are!
+                                    </h2>
+                                    <p className="text-2xl text-emerald-400 font-medium">
+                                        Thank you!
+                                    </p>
                                 </div>
                             )}
 
